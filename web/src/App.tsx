@@ -526,8 +526,8 @@ export default function App() {
 
       <header
         className={cn(
-          "lg:hidden fixed top-0 left-0 right-0 z-40 min-h-14",
-          "flex items-center gap-2 px-4 py-2",
+          "lg:hidden fixed top-0 left-0 right-0 z-40 min-h-[calc(3.5rem+env(safe-area-inset-top,0px))]",
+          "flex items-center gap-2 px-4 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top,0px))]",
           "border-b border-current/20",
           "bg-background-base",
         )}
@@ -570,7 +570,10 @@ export default function App() {
           fixed lg:hidden header is h-14/z-40; previously each banner carried
           its own mt-14 AND the content kept pt-14, so two visible banners
           stacked three offsets (NS-656 review P3). One spacer, applied once. */}
-      <div aria-hidden className="h-14 shrink-0 lg:hidden" />
+      <div
+        aria-hidden
+        className="h-[calc(3.5rem+env(safe-area-inset-top,0px))] shrink-0 lg:hidden"
+      />
       <PluginSlot name="header-banner" />
       <ProfileScopeBanner />
       <MemoryPressureBanner status={sidebarStatus} />
@@ -598,8 +601,9 @@ export default function App() {
           >
             <div
               className={cn(
-                "flex h-14 shrink-0 items-center gap-2",
+                "flex min-h-[calc(3.5rem+env(safe-area-inset-top,0px))] shrink-0 items-center gap-2",
                 "border-b border-current/20",
+                "pt-[env(safe-area-inset-top,0px)] lg:min-h-14 lg:pt-0",
                 collapsed ? "lg:justify-center lg:px-0" : "px-4 justify-between",
               )}
             >
