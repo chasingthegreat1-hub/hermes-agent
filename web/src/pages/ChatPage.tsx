@@ -232,6 +232,14 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
   const connectingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ptyInputLineRef = useRef("");
   const mobileReplacementInputUntilRef = useRef(0);
+
+  // Mobile prompt composer. The sender ref is populated by the active PTY
+  // connection so composed prompts use the exact same guarded send path as
+  // terminal keyboard input.
+  const [mobileComposerText, setMobileComposerText] = useState("");
+  const mobileComposerRef = useRef<HTMLTextAreaElement | null>(null);
+  const ptySendRef = useRef<((data: string) => void) | null>(null);
+  const ptyFocusRef = useRef<(() => void) | null>(null);
   const [ptyState, setPtyState] =
     useState<PtyConnectionState>("connecting");
   const ptyStateRef = useRef<PtyConnectionState>("connecting");
@@ -1475,6 +1483,13 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
       // must not consume the mobile replacement window intended for xterm's
       // normal onData path.
       sendComposedText = (data) => forwardPtyData(data, false);
+
+      // Expose the guarded PTY path to the mobile composer. Passing false
+      // avoids treating a deliberately composed multi-character prompt as
+      // an IME replacement event.
+      ptySendRef.current = (data: string) => forwardPtyData(data, false);
+      ptyFocusRef.current = () => term.focus();
+
       onDataDisposable = term.onData((data) => {
         if (!SGR_MOUSE_RE.test(data)) {
           compositionForwarder.noteTerminalData(data);
@@ -1501,6 +1516,8 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
     return () => {
       unmounting = true;
       imageUploadDisposed = true;
+      ptySendRef.current = null;
+      ptyFocusRef.current = null;
       syncMetricsRef.current = null;
       clearEraseSuppressionTimer();
       clearResumeLoadingTimers();
@@ -1841,6 +1858,64 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
             ref={hostRef}
             className="hermes-chat-xterm-host min-h-0 min-w-0 flex-1"
           />
+
+          <div
+            className="mt-2 flex shrink-0 flex-col gap-2 border-t border-current/20 pt-2 lg:hidden"
+            style={{ color: terminalFg }}
+          >
+            <textarea
+              ref={mobileComposerRef}
+              value={mobileComposerText}
+              onChange={(event) => setMobileComposerText(event.target.value)}
+              placeholder="Type or paste a prompt..."
+              rows={3}
+              className="min-h-20 w-full resize-y rounded border border-current/30 bg-black/30 px-3 py-2 text-base text-white outline-none placeholder:text-white/40 focus:border-current/60"
+              aria-label="Mobile prompt composer"
+            />
+
+            <div className="flex justify-start gap-2">
+              <Button
+                size="sm"
+                outlined
+                disabled={!mobileComposerText}
+                onClick={() => setMobileComposerText("")}
+              >
+                Clear
+              </Button>
+
+              <Button
+                size="sm"
+                disabled={
+                  !mobileComposerText.trim() ||
+                  ptyState !== "open"
+                }
+                onClick={() => {
+                  const text = mobileComposerText;
+                  const send = ptySendRef.current;
+
+                  if (!text.trim() || !send) return;
+
+                  // Send the complete composed prompt first. Give the
+                  // terminal/TUI a brief moment to process a large or
+                  // multiline paste before sending the final Enter key.
+                  send(text);
+                  setMobileComposerText("");
+
+                  mobileComposerRef.current?.blur();
+
+                  window.setTimeout(() => {
+                    send("\r");
+
+                    requestAnimationFrame(() => {
+                      ptyFocusRef.current?.();
+                    });
+                  }, 75);
+                }}
+              >
+                Send
+              </Button>
+            </div>
+          </div>
 
           {showReconnectOverlay && (
             <div className="absolute inset-x-3 top-3 z-20 flex justify-center sm:inset-x-auto sm:right-3 sm:justify-end">
